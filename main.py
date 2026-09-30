@@ -10,7 +10,7 @@ from telegram.ext import Application, CommandHandler, MessageHandler, filters, C
 # ==========================================
 # কনফিগারেশন
 # ==========================================
-BOT_TOKEN = "8960530766:AAGlXoTG82mtW7AIo8AvA6dEw9T9R0CdPKY"
+BOT_TOKEN = "8823772565:AAHRl3Nu7oTxfRlsLQueaIueN9DPvNt3F9E"
 ADMIN_ID = 6891217464
 DB_FILE = "videos.json"
 
