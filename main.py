@@ -1,17 +1,20 @@
-import asyncio
+import os
 import re
 import json
-import os
-from flask import Flask
+import asyncio
+import time
 from threading import Thread
+from flask import Flask, request
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
 # ==========================================
 # কনফিগারেশন
 # ==========================================
-BOT_TOKEN = "8823772565:AAHRl3Nu7oTxfRlsLQueaIueN9DPvNt3F9E"
+BOT_TOKEN = "8960530766:AAGlXoTG82mtW7AIo8AvA6dEw9T9R0CdPKY"
 ADMIN_ID = 6891217464
+BOT_USERNAME = "Direct12_bot"
+RENDER_URL = "https://telegram-bot-odb7.onrender.com"
 DB_FILE = "videos.json"
 
 # ==========================================
@@ -20,8 +23,11 @@ DB_FILE = "videos.json"
 def load_db():
     if not os.path.exists(DB_FILE):
         return {"next_id": 1, "videos": {}}
-    with open(DB_FILE, "r") as f:
-        return json.load(f)
+    try:
+        with open(DB_FILE, "r") as f:
+            return json.load(f)
+    except Exception:
+        return {"next_id": 1, "videos": {}}
 
 def save_db(data):
     with open(DB_FILE, "w") as f:
@@ -40,43 +46,27 @@ def get_video(vid):
     return db["videos"].get(str(vid))
 
 # ==========================================
-# Flask (24/7 alive)
+# Telegram Application (webhook mode)
 # ==========================================
-app = Flask('')
+application = Application.builder().token(BOT_TOKEN).updater(None).build()
 
-@app.route('/')
-def home(): 
-    return "Bot is Running 24/7 Alive and Secure!"
-
-@app.route('/health')
-def health():
-    return "alive", 200
-
-def run_flask(): 
-    port = int(os.environ.get("PORT", 8080))
-    app.run(host='0.0.0.0', port=port)
-
-# ==========================================
-# ১৫ মিনিট পর ডিলিট (তোমার আগের কোডের মতো)
-# ==========================================
-async def delete_message_after_delay(chat_id, message_id, context):
+# ১৫ মিনিট পর delete
+async def delete_after_delay(chat_id, message_id, context):
     await asyncio.sleep(900)
     try:
         await context.bot.delete_message(chat_id=chat_id, message_id=message_id)
-        print(f"Deleted {message_id}")
+        print(f"✅ Deleted: {message_id}")
     except Exception as e:
         print(f"Delete error: {e}")
 
-# ==========================================
-# /start — Short ID থেকে ভিডিও পাঠায়
-# ==========================================
+# /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     args = context.args
 
     if not args:
         await update.message.reply_text(
-            "👋 হ্যালো! ভিডিও ডাউনলোড করতে আমাদের ওয়েবসাইট ব্যবহার করুন।"
+            "👋 হ্যালো! ভিডিও ডাউনলোড করতে আমাদের ওয়েবসাইটের Download বাটনে ক্লিক করুন।"
         )
         return
 
@@ -93,16 +83,12 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     f"⚠️ এটি ১৫ মিনিট পর স্বয়ংক্রিয়ভাবে মুছে যাবে।",
             parse_mode="Markdown"
         )
-        asyncio.create_task(
-            delete_message_after_delay(chat_id, sent.message_id, context)
-        )
+        asyncio.create_task(delete_after_delay(chat_id, sent.message_id, context))
     except Exception as e:
-        await update.message.reply_text("❌ ভিডিওটি পাঠানো যায়নি। ফাইল আইডি সঠিক নয়।")
+        await update.message.reply_text("❌ ভিডিওটি পাঠানো যায়নি।")
         print(f"Send error: {e}")
 
-# ==========================================
-# Admin video upload → short ID (তোমার আগের logic)
-# ==========================================
+# Admin video upload
 async def catch_everything(update: Update, context: ContextTypes.DEFAULT_TYPE):
     message = update.message
     if not message:
@@ -118,16 +104,12 @@ async def catch_everything(update: Update, context: ContextTypes.DEFAULT_TYPE):
         file_id = message.document.file_id
     elif message.animation:
         file_id = message.animation.file_id
-
     elif message.text and ("t.me/" in message.text):
         link_parts = re.findall(r't\.me/(?:c/)?([^/]+)/(\d+)', message.text)
         if link_parts:
             channel_peer, msg_id = link_parts[0]
             message_id = int(msg_id)
-            if channel_peer.isdigit():
-                chat_target = int(f"-100{channel_peer}")
-            else:
-                chat_target = f"@{channel_peer}"
+            chat_target = int(f"-100{channel_peer}") if channel_peer.isdigit() else f"@{channel_peer}"
             try:
                 target_msg = await context.bot.forward_message(
                     chat_id=message.chat_id,
@@ -140,48 +122,82 @@ async def catch_everything(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     file_id = target_msg.document.file_id
                 elif target_msg.animation:
                     file_id = target_msg.animation.file_id
-
                 await context.bot.delete_message(
-                    chat_id=message.chat_id,
-                    message_id=target_msg.message_id
+                    chat_id=message.chat_id, message_id=target_msg.message_id
                 )
             except Exception as e:
                 await message.reply_text("❌ চ্যানেল থেকে ফাইল রিড করা যায়নি।")
-                print(f"Forward error: {e}")
                 return
 
     if file_id:
         title = message.caption or f"Video {load_db()['next_id']}"
         short_id = add_video(file_id, title)
-        final_link = f"https://t.me/{context.bot.username}?start={short_id}"
-
+        final_link = f"https://t.me/{BOT_USERNAME}?start={short_id}"
         await message.reply_text(
             text=f"✅ **ভিডিও সেভ হয়েছে!**\n\n"
                  f"🆔 **Short ID:** `{short_id}`\n"
                  f"📝 **Title:** {title}\n\n"
-                 f"🔗 **ওয়েবসাইটের Download বাটনে এই লিংক বসান:**\n"
-                 f"`{final_link}`\n\n"
-                 f"📋 **File ID (ব্যাকআপ):**\n`{file_id}`",
+                 f"🔗 **Download লিংক:**\n"
+                 f"`{final_link}`",
             parse_mode="Markdown"
         )
-    else:
-        if message.text and "t.me/" not in message.text:
-            await message.reply_text(
-                "👋 হ্যালো! ভিডিও ডাউনলোড করতে দয়া করে আমাদের ওয়েবসাইট ব্যবহার করুন।"
-            )
+    elif message.text:
+        await update.message.reply_text(
+            "👋 হ্যালো! ভিডিও ডাউনলোড করতে আমাদের ওয়েবসাইট ব্যবহার করুন।"
+        )
+
+# Handlers add
+application.add_handler(CommandHandler("start", start))
+application.add_handler(MessageHandler(filters.ALL, catch_everything))
 
 # ==========================================
-# Main
+# Flask + Webhook
 # ==========================================
+app = Flask('')
+loop = asyncio.new_event_loop()
+
+@app.route('/')
+def home():
+    return "✅ Premium Hub Bot is Running"
+
+@app.route('/health')
+def health():
+    return "alive", 200
+
+@app.route(f'/webhook/{BOT_TOKEN}', methods=['POST'])
+def webhook():
+    try:
+        data = request.get_json(force=True)
+        update = Update.de_json(data, application.bot)
+        asyncio.run_coroutine_threadsafe(application.process_update(update), loop)
+        return "ok", 200
+    except Exception as e:
+        print(f"❌ Webhook error: {e}")
+        return "error", 500
+
+# ==========================================
+# Startup
+# ==========================================
+async def setup_bot():
+    await application.initialize()
+    await application.bot.set_webhook(
+        url=f"{RENDER_URL}/webhook/{BOT_TOKEN}",
+        drop_pending_updates=True
+    )
+    await application.start()
+    print(f"✅ Webhook set: {RENDER_URL}/webhook/{BOT_TOKEN}")
+
+def run_async():
+    asyncio.set_event_loop(loop)
+    loop.run_until_complete(setup_bot())
+    loop.run_forever()
+
 def main():
-    Thread(target=run_flask).start()
-    application = Application.builder().token(BOT_TOKEN).build()
-
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(MessageHandler(filters.ALL, catch_everything))
-
-    print("Bot started...")
-    application.run_polling(allowed_updates=Update.ALL_TYPES)
+    Thread(target=run_async, daemon=True).start()
+    time.sleep(3)  # bot setup হওয়ার জন্য অপেক্ষা
+    port = int(os.environ.get("PORT", 8080))
+    print(f"🌐 Flask running on port {port}")
+    app.run(host='0.0.0.0', port=port, use_reloader=False)
 
 if __name__ == '__main__':
     main()
