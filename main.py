@@ -56,20 +56,34 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await update.message.reply_text("👋 হ্যালো! ভিডিও ডাউনলোড করতে দয়া করে আমাদের ওয়েবসাইট ব্যবহার করুন।")
 
-# ==========================================
-# ৫. ফাইল আইডি বের করার ফাংশন (আপনার জন্য)
+
+# ৫. ফাইল আইডি বের করার সর্বজনীন ফাংশন (আপডেটেড)
 # ==========================================
 async def get_file_id(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.message and update.message.video:
-        video_file_id = update.message.video.file_id
-        
-        message_text = f"✅ **আপনার ভিডিওর File ID পেয়ে গেছেন!**\n\n" \
-                       f"কোডটি কপি করে আপনার ওয়েবসাইটে বসান:\n" \
-                       f"`{video_file_id}`\n\n" \
-                       f"🔗 **আপনার ওয়েবসাইটের ডাউনলোড বাটনের লিংক হবে:**\n" \
-                       f"https://t.me{context.bot.username}?start={video_file_id}"
+    message = update.message
+    file_id = None
+    
+    # ভিডিও অথবা সাধারণ ডকুমেন্ট ফাইল—যা-ই আসুক না কেন তার ফাইল আইডি খুঁজে বের করবে
+    if message.video:
+        file_id = message.video.file_id
+    elif message.document:
+        file_id = message.document.file_id
+    elif message.audio:
+        file_id = message.audio.file_id
+    elif message.photo:
+        file_id = message.photo[-1].file_id
+
+    if file_id:
+        # বট আপনাকে সরাসরি চ্যাট বক্সে ফাইল আইডি দিয়ে দেবে
+        message_text = f"✅ **আপনার ফাইলের আসল File ID পেয়ে গেছেন!**\n\n" \
+                       f"কোডটি কপি করে রাখুন:\n" \
+                       f"`{file_id}`\n\n" \
+                       f"🔗 **ইউজারদের জন্য আপনার ডাউনলোড লিংক হবে:**\n" \
+                       f"https://t.me{context.bot.username}?start={file_id}"
                        
-        await update.message.reply_text(text=message_text, parse_mode="Markdown")
+        await message.reply_text(text=message_text, parse_mode="Markdown")
+    else:
+        await message.reply_text("❌ এটি কোনো বৈধ ফাইল বা ভিডিও নয়। দয়া করে সঠিক ফাইল পাঠান।")
 
 # ==========================================
 # ৬. মেইন ফাংশন (বট চালু করার জায়গা)
