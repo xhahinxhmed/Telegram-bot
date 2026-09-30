@@ -1,10 +1,11 @@
 # ==========================================================
-#  PREMIUM HUB - Telegram Bot (Short ID System)
-#  Bot: @Direct12_bot
+#  PREMIUM HUB - Telegram Bot (Debug Version)
 # ==========================================================
 import os
 import re
 import json
+import sys
+import traceback
 from threading import Thread
 from flask import Flask
 from telegram import Update
@@ -12,16 +13,25 @@ from telegram.ext import (
     Application, CommandHandler, MessageHandler, filters, ContextTypes
 )
 
+# Line-by-line output flush (Render এ সাথে সাথে log দেখা যাবে)
+try:
+    sys.stdout.reconfigure(line_buffering=True)
+    sys.stderr.reconfigure(line_buffering=True)
+except Exception:
+    pass
+
 # ==========================================================
-#  ⚙️ তোমার তথ্য (এখানে বসানো আছে)
+#  ⚙️ CONFIG
 # ==========================================================
 BOT_TOKEN = "8960530766:AAGlXoTG82mtW7AIo8AvA6dEw9T9R0CdPKY"
 ADMIN_ID = 6891217464
 BOT_USERNAME = "Direct12_bot"
 DB_FILE = "videos.json"
 
+print("🔧 [1] Imports done", flush=True)
+
 # ==========================================================
-#  💾 ডাটাবেজ
+#  💾 DATABASE
 # ==========================================================
 def load_db():
     if not os.path.exists(DB_FILE):
@@ -45,8 +55,10 @@ def get_video(vid):
     db = load_db()
     return db["videos"].get(str(vid))
 
+print("🔧 [2] DB functions ready", flush=True)
+
 # ==========================================================
-#  🌐 Flask (24/7 লাইভ রাখার জন্য)
+#  🌐 FLASK
 # ==========================================================
 app = Flask('')
 
@@ -60,10 +72,13 @@ def health():
 
 def run_flask():
     port = int(os.environ.get("PORT", 8080))
-    app.run(host='0.0.0.0', port=port)
+    print(f"🌐 Flask starting on port {port}", flush=True)
+    app.run(host='0.0.0.0', port=port, use_reloader=False)
+
+print("🔧 [3] Flask app defined", flush=True)
 
 # ==========================================================
-#  ⏱️ ১৫ মিনিট পর ভিডিও ডিলিট
+#  ⏱️ Delete job
 # ==========================================================
 async def delete_job(context: ContextTypes.DEFAULT_TYPE):
     job = context.job
@@ -72,9 +87,9 @@ async def delete_job(context: ContextTypes.DEFAULT_TYPE):
             chat_id=job.data["chat_id"],
             message_id=job.data["message_id"]
         )
-        print(f"✅ Deleted: {job.data['message_id']}")
+        print(f"✅ Deleted: {job.data['message_id']}", flush=True)
     except Exception as e:
-        print(f"❌ Delete error: {e}")
+        print(f"❌ Delete error: {e}", flush=True)
 
 # ==========================================================
 #  🚀 /start
@@ -110,17 +125,15 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
     except Exception as e:
         await update.message.reply_text("❌ ভিডিও পাঠানো যায়নি।")
-        print(f"Send error: {e}")
+        print(f"Send error: {e}", flush=True)
 
 # ==========================================================
-#  📥 Admin: Video Upload → Short ID
+#  📥 Admin video upload
 # ==========================================================
 async def handle_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
     message = update.message
     if not message:
         return
-
-    # শুধু admin video পাঠাতে পারবে
     if update.effective_user.id != ADMIN_ID:
         await message.reply_text("❌ তুমি admin নও।")
         return
@@ -137,7 +150,6 @@ async def handle_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
         title = message.caption or f"Video {load_db()['next_id']}"
         short_id = add_video(file_id, title)
         link = f"https://t.me/{BOT_USERNAME}?start={short_id}"
-
         await message.reply_text(
             f"✅ *ভিডিও সেভ হয়েছে!*\n\n"
             f"🆔 *Short ID:* `{short_id}`\n"
@@ -148,7 +160,7 @@ async def handle_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
 # ==========================================================
-#  📋 /list — সব ভিডিও দেখতে
+#  📋 /list
 # ==========================================================
 async def list_videos(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
@@ -163,40 +175,35 @@ async def list_videos(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(text, parse_mode="Markdown")
 
 # ==========================================================
-#  🗑️ /del <id> — ভিডিও ডিলিট
-# ==========================================================
-async def delete_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != ADMIN_ID:
-        return
-    if not context.args:
-        await update.message.reply_text("ব্যবহার: `/del 1`", parse_mode="Markdown")
-        return
-    vid = context.args[0]
-    db = load_db()
-    if vid in db["videos"]:
-        del db["videos"][vid]
-        save_db(db)
-        await update.message.reply_text(f"🗑️ ভিডিও #{vid} ডিলিট হয়েছে।")
-    else:
-        await update.message.reply_text("❌ এই ID তে কোনো ভিডিও নেই।")
-
-# ==========================================================
 #  🏁 Main
 # ==========================================================
 def main():
-    Thread(target=run_flask, daemon=True).start()
+    try:
+        print("🚀 [4] Main started", flush=True)
 
-    application = Application.builder().token(BOT_TOKEN).build()
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(CommandHandler("list", list_videos))
-    application.add_handler(CommandHandler("del", delete_video))
-    application.add_handler(MessageHandler(
-        filters.VIDEO | filters.Document.VIDEO | filters.ANIMATION,
-        handle_video
-    ))
+        t = Thread(target=run_flask, daemon=True)
+        t.start()
+        print("🌐 [5] Flask thread launched", flush=True)
 
-    print("🤖 Bot started...")
-    application.run_polling(allowed_updates=Update.ALL_TYPES)
+        application = Application.builder().token(BOT_TOKEN).build()
+        print("🤖 [6] Application built", flush=True)
+
+        application.add_handler(CommandHandler("start", start))
+        application.add_handler(CommandHandler("list", list_videos))
+        application.add_handler(MessageHandler(
+            filters.VIDEO | filters.Document.VIDEO | filters.ANIMATION,
+            handle_video
+        ))
+        print("📌 [7] Handlers added", flush=True)
+
+        print("🚀 [8] Starting polling...", flush=True)
+        application.run_polling(allowed_updates=Update.ALL_TYPES)
+        print("⚠️ [9] Polling ended unexpectedly", flush=True)
+
+    except Exception as e:
+        print(f"❌❌❌ FATAL ERROR: {e}", flush=True)
+        traceback.print_exc()
+        raise
 
 if __name__ == '__main__':
     main()
