@@ -8,7 +8,7 @@ from telegram.ext import Application, CommandHandler, MessageHandler, filters, C
 # ==========================================
 # ১. কনফিগারেশন (আপনার নতুন টোকেনটি বসানো হয়েছে)
 # ==========================================
-BOT_TOKEN = "8854706838:AAE9IgXX2HSOpHHk_ZOWIIsCNAQo7ls2-Tw"  
+BOT_TOKEN = "8960530766:AAGlXoTG82mtW7AIo8AvA6dEw9T9R0CdPKY"  
 
 # ==========================================
 # ২. ২৪ ঘন্টা লাইভ রাখার জন্য ফ্লাস্ক সার্ভার
