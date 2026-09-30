@@ -6,9 +6,9 @@ from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
 # ==========================================
-# ১. কনফিগারেশন (আপনার বটের আসল টোকেন)
+# ১. কনফিগারেশন (আপনার নতুন টোকেনটি বসানো হয়েছে)
 # ==========================================
-BOT_TOKEN = "8854706838:AAGGuJwBt--Dyh12BKyBJ7YljP_IpMvo2DM"  
+BOT_TOKEN = "8854706838:AAE9IgXX2HSOpHHk_ZOWIIsCNAQo7ls2-Tw"  
 
 # ==========================================
 # ২. ২৪ ঘন্টা লাইভ রাখার জন্য ফ্লাস্ক সার্ভার
@@ -17,7 +17,7 @@ app = Flask('')
 
 @app.route('/')
 def home(): 
-    return "Bot is Running 24/7 Alive!"
+    return "Bot is Running 24/7 Alive and Secure!"
 
 def run_flask(): 
     app.run(host='0.0.0.0', port=8080)
@@ -44,7 +44,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if args:
         file_id = args[0] if isinstance(args, list) else args
         try:
-            # ইউজারকে সরাসরি File ID ব্যবহার করে ভিডিও পাঠানো হচ্ছে (১ সেকেন্ডে চলে যাবে)
+            # ইউজারকে সরাসরি File ID ব্যবহার করে ভিডিও পাঠানো হচ্ছে
             sent_message = await context.bot.send_video(
                 chat_id=chat_id, 
                 video=file_id, 
@@ -65,42 +65,46 @@ async def catch_everything(update: Update, context: ContextTypes.DEFAULT_TYPE):
     message = update.message
     file_id = None
     
-    # ক) যদি আপনি সরাসরি ছোট ভিডিও, ডকুমেন্ট বা অ্যানিমেশন বটের ইনবক্সে পাঠান
+    # ক) যদি সরাসরি কোনো ছোট ভিডিও, ডকুমেন্ট বা অ্যানিমেশন বটের ইনবক্সে পাঠান
     if message.video: 
         file_id = message.video.file_id
-    elif message.document and message.document.mime_type.startswith('video/'):
+    elif message.document and message.document.mime_type and message.document.mime_type.startswith('video/'):
         file_id = message.document.file_id
     elif message.animation:
         file_id = message.animation.file_id
         
-    # খ) ট্রিকস: যদি আপনি চ্যানেলের ভিডিও লিংক টেক্সট আকারে বটে পাঠান
+    # খ) ট্রিকস: যদি চ্যানেলের ভিডিও লিংক টেক্সট আকারে বটে পাঠান
     elif message.text and ("t.me/" in message.text):
-        # লিংক থেকে চ্যানেল আইডি এবং মেসেজ আইডি আলাদা করার চেষ্টা
-        link_parts = re.findall(r't\.me/(?:c/)?([^/]+)/(\053?\d+)', message.text)
+        # লিংক থেকে চ্যানেল আইডি/নাম এবং মেসেজ আইডি আলাদা করার রেগুলার এক্সপ্রেশন
+        link_parts = re.findall(r't\.me/(?:c/)?([^/]+)/(\d+)', message.text)
         if link_parts:
             channel_peer = link_parts[0][0]
             message_id = int(link_parts[0][1])
             
-            # যদি প্রাইভেট চ্যানেল হয় (যেমন c/123456) তাহলে মাইনাস ১০০ যোগ করতে হয় টেলিগ্রাম রুলস অনুযায়ী
+            # যদি প্রাইভেট চ্যানেল আইডি হয় (যেমন c/123456) তবে মাইনাস ১০০ যোগ করতে হয় টেলিগ্রামের রুলস অনুযায়ী
             if channel_peer.isdigit():
                 chat_target = int(f"-100{channel_peer}")
             else:
                 chat_target = f"@{channel_peer}"
                 
             try:
-                # বট আপনার হয়ে ওই চ্যানেলের পোস্টটি রিমোটলি চেক করবে
-                target_msg = await context.bot.get_custom_emoji_stickers if hasattr(context.bot, 'get_discussion_message') else await context.bot.forward_message(chat_id=chat_id, from_chat_id=chat_target, message_id=message_id)
+                # বট সাময়িকভাবে চ্যানেলের পোস্টটি নিজের চ্যাটে ফরোয়ার্ড করে ফাইল আইডি নেবে
+                target_msg = await context.bot.forward_message(chat_id=message.chat_id, from_chat_id=chat_target, message_id=message_id)
                 
-                # ফরোয়ার্ড করা মেসেজ থেকে ফাইল আইডি নেওয়া
-                if target_msg.video: file_id = target_msg.video.file_id
-                elif target_msg.document: file_id = target_msg.document.file_id
+                if target_msg.video: 
+                    file_id = target_msg.video.file_id
+                elif target_msg.document: 
+                    file_id = target_msg.document.file_id
+                elif target_msg.animation:
+                    file_id = target_msg.animation.file_id
                 
-                # সাময়িক ফরোয়ার্ড মেসেজটি সাথে সাথে ডিলিট করে দেওয়া (ক্লিন রাখার জন্য)
-                await context.bot.delete_message(chat_id=chat_id, message_id=target_msg.message_id)
+                # ফাইল আইডি নেওয়ার পর সাময়িক ফরোয়ার্ড মেসেজটি সাথে সাথে চ্যাট থেকে ডিলিট করে দেওয়া হবে
+                await context.bot.delete_message(chat_id=message.chat_id, message_id=target_msg.message_id)
             except Exception as e:
-                pass
+                await message.reply_text(f"❌ চ্যানেল থেকে ফাইল রিড করা যায়নি। নিশ্চিত হোন বটটি চ্যানেলের অ্যাডমিন কিনা।")
+                print(f"Error reading channel link: {e}")
 
-    # ফাইল আইডি সফলভাবে পাওয়া গেলে আপনাকে রিপ্লাই দেবে
+    # ফাইল আইডি সফলভাবে পাওয়া গেলে আপনাকে চ্যাটে সুন্দর করে রিপ্লাই দেবে
     if file_id:
         message_text = f"✅ **আপনার ভিডিওর File ID সফলভাবে জেনারেট হয়েছে!**\n\n" \
                        f"📋 **File ID কোড (কপি করে রাখুন):**\n" \
@@ -110,25 +114,21 @@ async def catch_everything(update: Update, context: ContextTypes.DEFAULT_TYPE):
                        
         await message.reply_text(text=message_text, parse_mode="Markdown")
     else:
-        # সাধারণ মেসেজ বা টেক্সট আসলে ওয়েবসাইট ব্যবহারের নোটিশ দেবে
-        await message.reply_text("👋 হ্যালো! ভিডিও ডাউনলোড করতে দয়া করে আমাদের ওয়েবসাইট ব্যবহার করুন।")
+        # যদি ফাইল আইডি না পাওয়া যায় এবং এটি শুধু নরমাল টেক্সট বা হাই/হ্যালো হয়
+        if message.text and "t.me/" not in message.text:
+            await message.reply_text("👋 হ্যালো! ভিডিও ডাউনলোড করতে দয়া করে আমাদের ওয়েবসাইট ব্যবহার করুন।")
 
 # ==========================================
 # ৬. মেইন ফাংশন (বট রান ও Polling শুরু)
 # ==========================================
 def main():
-    # ব্যাকগ্রাউন্ডে ফ্লাস্ক ওয়েব সার্ভার চালু করা (Keep Alive)
     Thread(target=run_flask).start()  
-    
-    # বট অ্যাপ্লিকেশন তৈরি
     application = Application.builder().token(BOT_TOKEN).build()
     
-    # হ্যান্ডলারগুলো যুক্ত করা
     application.add_handler(CommandHandler("start", start))
     application.add_handler(MessageHandler(filters.ALL, catch_everything))  
     
     print("Bot started...")
-    # সব ধরণের ফাইল আপডেট রিসিভ করার পারমিশন চালু
     application.run_polling(allowed_updates=Update.ALL_TYPES)
 
 if __name__ == '__main__':
