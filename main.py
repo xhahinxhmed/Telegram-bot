@@ -28,7 +28,7 @@ async def delete_message_after_delay(chat_id, message_id, context: ContextTypes.
     await asyncio.sleep(900)  # ১৫ মিনিট = ৯০০ সেকেন্ড অপেক্ষা করবে
     try:
         await context.bot.delete_message(chat_id=chat_id, message_id=message_id)
-        print(f"Message {message_id} deleted successfully after 15 minutes.")
+        print(f"Message {message_id} deleted successfully.")
     except Exception as e:
         print(f"Error deleting message: {e}")
 
@@ -37,18 +37,16 @@ async def delete_message_after_delay(chat_id, message_id, context: ContextTypes.
 # ==========================================
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
-    args = context.args  # ওয়েবসাইটের লিংকের শেষে থাকা File ID এখানে আসবে
+    args = context.args  
 
     if args:
-        file_id = args if isinstance(args, list) else args
+        file_id = args[0] if isinstance(args, list) else args
         try:
-            # ইউজারকে সরাসরি File ID ব্যবহার করে ভিডিও পাঠানো হচ্ছে
             sent_message = await context.bot.send_video(
                 chat_id=chat_id, 
                 video=file_id, 
                 caption="🍿 আপনার কাঙ্ক্ষিত ভিডিওটি এখানে! এটি ১৫ মিনিট পর স্বয়ংক্রিয়ভাবে ডিলিট হয়ে যাবে।"
             )
-            # ভিডিও পাঠানোর সাথে সাথেই ১৫ মিনিটের টাইমার চালু হবে
             asyncio.create_task(delete_message_after_delay(chat_id, sent_message.message_id, context))
         except Exception as e:
             await update.message.reply_text("❌ দুঃখিত! ভিডিওটি পাওয়া যায়নি। ফাইল আইডিটি সঠিক নয়।")
@@ -56,34 +54,32 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await update.message.reply_text("👋 হ্যালো! ভিডিও ডাউনলোড করতে দয়া করে আমাদের ওয়েবসাইট ব্যবহার করুন।")
 
-
-# ৫. ফাইল আইডি বের করার সর্বজনীন ফাংশন (আপডেটেড)
+# ==========================================
+# ৫. ফাইল আইডি বের করার সর্বজনীন ফাংশন (সব ধরণের ফাইলের জন্য)
 # ==========================================
 async def get_file_id(update: Update, context: ContextTypes.DEFAULT_TYPE):
     message = update.message
     file_id = None
     
-    # ভিডিও অথবা সাধারণ ডকুমেন্ট ফাইল—যা-ই আসুক না কেন তার ফাইল আইডি খুঁজে বের করবে
+    # ভিডিও, ডকুমেন্ট বা অ্যানিমেশন ফাইল—যা-ই আসুক তার আইডি বের করবে
     if message.video:
         file_id = message.video.file_id
     elif message.document:
         file_id = message.document.file_id
+    elif message.animation:
+        file_id = message.animation.file_id
     elif message.audio:
         file_id = message.audio.file_id
-    elif message.photo:
-        file_id = message.photo[-1].file_id
 
     if file_id:
-        # বট আপনাকে সরাসরি চ্যাট বক্সে ফাইল আইডি দিয়ে দেবে
         message_text = f"✅ **আপনার ফাইলের আসল File ID পেয়ে গেছেন!**\n\n" \
                        f"কোডটি কপি করে রাখুন:\n" \
                        f"`{file_id}`\n\n" \
                        f"🔗 **ইউজারদের জন্য আপনার ডাউনলোড লিংক হবে:**\n" \
                        f"https://t.me{context.bot.username}?start={file_id}"
-                       
         await message.reply_text(text=message_text, parse_mode="Markdown")
     else:
-        await message.reply_text("❌ এটি কোনো বৈধ ফাইল বা ভিডিও নয়। দয়া করে সঠিক ফাইল পাঠান।")
+        await message.reply_text("❌ এটি কোনো বৈধ ফাইল বা ভিডিও নয়। দয়া করে সঠিক ফাইল বা ভিডিও পাঠান।")
 
 # ==========================================
 # ৬. মেইন ফাংশন (বট চালু করার জায়গা)
@@ -93,10 +89,14 @@ def main():
     application = Application.builder().token(BOT_TOKEN).build()
     
     application.add_handler(CommandHandler("start", start))
-    application.add_handler(MessageHandler(filters.UpdateType.MESSAGE, get_file_id))  
+    
+    # এখানে filters.ALL দেওয়া হয়েছে যাতে যেকোনো ধরনের মেসেজ বট অবজেক্ট আকারে পায়
+    application.add_handler(MessageHandler(filters.ALL, get_file_id))  
     
     print("Bot started...")
-    application.run_polling()
+    
+    # এই লাইনেallowed_updates দেওয়া হয়েছে যেন টেলিগ্রাম সব ধরণের ফাইল সার্ভারে পাঠায়
+    application.run_polling(allowed_updates=Update.ALL_TYPES)
 
 if __name__ == '__main__':
     main()
